@@ -8,10 +8,11 @@
 </head>
 <body>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/controls/OrbitControls.js';
 
-<script>
-// ===== BASIC SETUP =====
+// ===== SCENE =====
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 10000);
@@ -21,32 +22,31 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// ===== CONTROLS =====
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
 // ===== LIGHT =====
-const light = new THREE.PointLight(0xffffff, 2, 0);
+const light = new THREE.PointLight(0xffffff, 2);
 scene.add(light);
 
-// ===== KERBOL (SUN) =====
-const sunGeo = new THREE.SphereGeometry(10, 32, 32);
-const sunMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
-const kerbol = new THREE.Mesh(sunGeo, sunMat);
-scene.add(kerbol);
+// ===== KERBOL =====
+const sun = new THREE.Mesh(
+  new THREE.SphereGeometry(10, 32, 32),
+  new THREE.MeshBasicMaterial({ color: 0xffaa00 })
+);
+scene.add(sun);
 
-// ===== SCALE (VERY IMPORTANT) =====
+// ===== SCALE =====
 const SCALE = 1 / 10000000;
 
-// ===== PLANET DATA (semi-major axis in meters) =====
+// ===== PLANETS =====
 const planets = [
-  { name: "Moho", a: 5263138304, e: 0.2, color: 0x888888 },
-  { name: "Eve", a: 9832684544, e: 0.01, color: 0xaa00ff },
-  { name: "Kerbin", a: 13599840256, e: 0.0, color: 0x00aaff },
-  { name: "Duna", a: 20726155264, e: 0.05, color: 0xff5500 },
-  { name: "Dres", a: 40839348203, e: 0.14, color: 0xaaaaaa },
-  { name: "Jool", a: 68773560320, e: 0.05, color: 0x00ff00 },
-  { name: "Eeloo", a: 90118820000, e: 0.26, color: 0xffffff }
+  { a: 13599840256, e: 0.0, color: 0x00aaff } // Kerbin (test first)
 ];
 
-// ===== CREATE ORBITS =====
-function createOrbit(a, e, color) {
+// ===== ORBIT FUNCTION =====
+function createOrbit(a, e) {
   const points = [];
 
   for (let t = 0; t < Math.PI * 2; t += 0.01) {
@@ -58,54 +58,52 @@ function createOrbit(a, e, color) {
     points.push(new THREE.Vector3(x, 0, z));
   }
 
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  const material = new THREE.LineBasicMaterial({ color: color });
-
-  return new THREE.Line(geometry, material);
+  const geo = new THREE.BufferGeometry().setFromPoints(points);
+  return new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x00aaff }));
 }
 
-// ===== CREATE PLANETS =====
-const planetMeshes = [];
+// ===== CREATE =====
+const meshes = [];
 
 planets.forEach(p => {
-  // orbit
-  const orbit = createOrbit(p.a, p.e, p.color);
+  const orbit = createOrbit(p.a, p.e);
   scene.add(orbit);
 
-  // planet
-  const geo = new THREE.SphereGeometry(2, 16, 16);
-  const mat = new THREE.MeshBasicMaterial({ color: p.color });
-  const planet = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(2, 16, 16),
+    new THREE.MeshBasicMaterial({ color: p.color })
+  );
 
-  scene.add(planet);
-  planetMeshes.push({ mesh: planet, data: p });
+  scene.add(mesh);
+  meshes.push({ mesh, data: p });
 });
 
-// ===== ANIMATION =====
+// ===== LOOP =====
 let time = 0;
 
 function animate() {
   requestAnimationFrame(animate);
-  time += 0.002;
+  time += 0.01;
 
-  planetMeshes.forEach(obj => {
+  meshes.forEach(obj => {
     const { mesh, data } = obj;
 
-    let t = time;
-    let r = (data.a * (1 - data.e * data.e)) / (1 + data.e * Math.cos(t));
+    let r = (data.a * (1 - data.e * data.e)) / (1 + data.e * Math.cos(time));
 
-    let x = r * Math.cos(t) * SCALE;
-    let z = r * Math.sin(t) * SCALE;
-
-    mesh.position.set(x, 0, z);
+    mesh.position.set(
+      r * Math.cos(time) * SCALE,
+      0,
+      r * Math.sin(time) * SCALE
+    );
   });
 
+  controls.update();
   renderer.render(scene, camera);
 }
 
 animate();
 
-// ===== RESIZE FIX =====
+// ===== RESIZE =====
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
